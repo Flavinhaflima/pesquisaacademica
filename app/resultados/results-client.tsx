@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AdminLogin } from "@/components/admin-login"
@@ -106,11 +106,16 @@ export default function ResultsClient({ responses: initialResponses }: ResultsCl
   const [editFormData, setEditFormData] = useState<Record<string, string>>({})
   const [isDeleting, setIsDeleting] = useState<number | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
 
   useEffect(() => {
     checkAuth()
   }, [])
+
+  useEffect(() => {
+    setResponses(initialResponses)
+  }, [initialResponses])
 
   const checkAuth = async () => {
     try {
@@ -121,6 +126,27 @@ export default function ResultsClient({ responses: initialResponses }: ResultsCl
       setIsAuthenticated(false)
     }
   }
+
+  const refreshResponses = useCallback(async () => {
+    setIsRefreshing(true)
+    try {
+      const res = await fetch("/api/survey", { cache: "no-store" })
+      if (res.ok) {
+        const data = await res.json()
+        setResponses(data as SurveyResponse[])
+      }
+    } catch (error) {
+      console.error("Error refreshing responses:", error)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      refreshResponses()
+    }
+  }, [isAuthenticated, refreshResponses])
 
   const handleLogout = async () => {
     await fetch("/api/auth", { method: "DELETE" })
@@ -315,6 +341,13 @@ export default function ResultsClient({ responses: initialResponses }: ResultsCl
             </div>
             
             <div className="flex gap-2">
+              <button
+                onClick={refreshResponses}
+                disabled={isRefreshing}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-secondary text-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50"
+              >
+                {isRefreshing ? "Atualizando..." : "Atualizar"}
+              </button>
               <button
                 onClick={() => setView("summary")}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${

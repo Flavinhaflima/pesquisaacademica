@@ -1,6 +1,9 @@
 import { neon } from '@neondatabase/serverless'
 import ResultsClient from './results-client'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 interface SurveyResponse {
   id: number
   q0a: string | null

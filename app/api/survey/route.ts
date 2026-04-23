@@ -1,6 +1,9 @@
 import { neon } from '@neondatabase/serverless'
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 const sql = neon(process.env.DATABASE_URL!)
 
 const getQuestionKey = (questionNumber: string) => questionNumber.toLowerCase().replace('.', '').replace('_', '')
@@ -70,11 +73,18 @@ export async function POST(request: Request) {
 export async function GET() {
   try {
     const responses = await sql`
-      SELECT * FROM survey_responses 
+      SELECT 
+        id, q0a, q0b, q1, q2, q3, q41, q42, q5, q6, q7, q8, q9, q10, q11, q12, q13,
+        to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as created_at
+      FROM survey_responses 
       ORDER BY created_at DESC
     `
     
-    return NextResponse.json(responses)
+    return NextResponse.json(responses, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      },
+    })
   } catch (error) {
     console.error('Error fetching survey responses:', error)
     return NextResponse.json(
