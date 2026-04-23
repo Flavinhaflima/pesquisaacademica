@@ -25,6 +25,15 @@ interface SurveyResponse {
   created_at: string
 }
 
+interface SurveyQuestion {
+  question_key: string
+  question_number: string
+  question_text: string
+  question_type: string
+  options: { value: string; label: string }[] | null
+  sort_order: number
+}
+
 async function getResponses(): Promise<SurveyResponse[]> {
   try {
     const sql = neon(process.env.DATABASE_URL!)
@@ -42,8 +51,23 @@ async function getResponses(): Promise<SurveyResponse[]> {
   }
 }
 
+async function getQuestions(): Promise<SurveyQuestion[]> {
+  try {
+    const sql = neon(process.env.DATABASE_URL!)
+    const questions = await sql`
+      SELECT question_key, question_number, question_text, question_type, options, sort_order
+      FROM survey_questions
+      ORDER BY sort_order ASC, question_number ASC
+    `
+    return questions as SurveyQuestion[]
+  } catch (error) {
+    console.error("Error fetching questions:", error)
+    return []
+  }
+}
+
 export default async function ResultsPage() {
-  const responses = await getResponses()
+  const [responses, questions] = await Promise.all([getResponses(), getQuestions()])
   
-  return <ResultsClient responses={responses as SurveyResponse[]} />
+  return <ResultsClient responses={responses as SurveyResponse[]} questions={questions} />
 }

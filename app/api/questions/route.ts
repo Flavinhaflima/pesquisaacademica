@@ -9,6 +9,7 @@ export async function GET() {
     const questions = await sql`
       SELECT 
         id, 
+        question_key,
         block_title, 
         question_number, 
         question_text, 

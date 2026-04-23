@@ -26,60 +26,23 @@ interface SurveyResponse {
   created_at: string
 }
 
-const questionLabels: Record<string, string> = {
-  q0a: "Gênero",
-  q0b: "Idade",
-  q1: "Durante o scroll no Instagram ou TikTok, eu costumo ignorar automaticamente qualquer forma de anúncio",
-  q2: "Costumo pular anúncios automaticamente, sem prestar atenção",
-  q3: "O formato da propaganda (como reels, estático ou story) influencia se eu paro para prestar atenção",
-  q41: "Q4.1 - Criatividade (quando a ideia é diferente ou chama atenção)",
-  q42: "Q4.2 - Estética (quando o visual, edição ou design são atraentes)",
-  q5: "Me sinto desconfortável quando um anúncio parece saber demais sobre mim",
-  q6: "Lembro de marcas que vi em anúncios, mesmo sem ter clicado",
-  q7: "Confio mais em anúncios que parecem conteúdo orgânico",
-  q8: "Já pesquisei um produto após ver um anúncio, mesmo sem clicar nele",
-  q9: "Sinto que o algoritmo entende bem meus interesses",
-  q10: "Anúncios interrompem minha experiência nas redes sociais",
-  q11: "Prefiro anúncios em formato de vídeo curto",
-  q12: "Me sinto no controle do que consumo nas redes sociais",
-  q13: "Anúncios criativos me fazem parar de rolar o feed"
+interface SurveyQuestion {
+  question_key?: string
+  question_number: string
+  question_text: string
+  question_type: string
+  options: { value: string; label: string }[] | null
+  sort_order: number
 }
 
-const demographicOptions: Record<string, { value: string; label: string }[]> = {
-  q0a: [
-    { value: "a", label: "Feminino" },
-    { value: "b", label: "Masculino" },
-    { value: "c", label: "Prefiro não informar" }
-  ],
-  q0b: [
-    { value: "a", label: "Menor de 18 anos" },
-    { value: "b", label: "Entre 19-24 anos" },
-    { value: "c", label: "Entre 25-34 anos" },
-    { value: "d", label: "Entre 35-44 anos" },
-    { value: "e", label: "Entre 45-54 anos" },
-    { value: "f", label: "Mais de 55 anos" }
-  ]
+function getQuestionKey(question: Pick<SurveyQuestion, "question_key" | "question_number">) {
+  return question.question_key || question.question_number.toLowerCase().replace(".", "").replace("_", "")
 }
 
-const likertOptions = [
-  { value: "1", label: "Discordo" },
-  { value: "2", label: "Discordo Parcialmente" },
-  { value: "3", label: "Neutro" },
-  { value: "4", label: "Concordo Parcialmente" },
-  { value: "5", label: "Concordo" }
-]
-
-function getLikertLabel(value: string | null): string {
+function getOptionLabel(question: SurveyQuestion, value: string | null): string {
   if (!value) return "-"
-  const option = likertOptions.find(o => o.value === value)
+  const option = question.options?.find(o => o.value === value)
   return option ? `${value} - ${option.label}` : value
-}
-
-function getDemographicLabel(question: string, value: string | null): string {
-  if (!value) return "-"
-  const options = demographicOptions[question]
-  const option = options?.find(o => o.value === value)
-  return option ? option.label : value
 }
 
 function countAnswers(responses: SurveyResponse[], question: string): Record<string, number> {
@@ -93,13 +56,19 @@ function countAnswers(responses: SurveyResponse[], question: string): Record<str
   return counts
 }
 
-interface ResultsClientProps {
-  responses: SurveyResponse[]
+function getQuestionRenderKey(question: SurveyQuestion) {
+  return `${getQuestionKey(question)}-${question.sort_order}-${question.question_number}`
 }
 
-export default function ResultsClient({ responses: initialResponses }: ResultsClientProps) {
+interface ResultsClientProps {
+  responses: SurveyResponse[]
+  questions?: SurveyQuestion[]
+}
+
+export default function ResultsClient({ responses: initialResponses, questions: initialQuestions = [] }: ResultsClientProps) {
   const router = useRouter()
   const [responses, setResponses] = useState(initialResponses)
+  const [questions, setQuestions] = useState(initialQuestions)
   const [view, setView] = useState<"summary" | "individual">("summary")
   const [expandedResponse, setExpandedResponse] = useState<number | null>(null)
   const [editingResponse, setEditingResponse] = useState<SurveyResponse | null>(null)
@@ -142,11 +111,24 @@ export default function ResultsClient({ responses: initialResponses }: ResultsCl
     }
   }, [])
 
+  const refreshQuestions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/questions", { cache: "no-store" })
+      if (res.ok) {
+        const data = await res.json()
+        setQuestions(data as SurveyQuestion[])
+      }
+    } catch (error) {
+      console.error("Error refreshing questions:", error)
+    }
+  }, [])
+
   useEffect(() => {
     if (isAuthenticated) {
       refreshResponses()
+      refreshQuestions()
     }
-  }, [isAuthenticated, refreshResponses])
+  }, [isAuthenticated, refreshResponses, refreshQuestions])
 
   const handleLogout = async () => {
     await fetch("/api/auth", { method: "DELETE" })
@@ -165,9 +147,11 @@ export default function ResultsClient({ responses: initialResponses }: ResultsCl
     return <AdminLogin onSuccess={() => setIsAuthenticated(true)} />
   }
 
-  const demographicQuestions = ["q0a", "q0b"]
-  const likertQuestions = ["q1", "q2", "q3", "q41", "q42", "q5", "q6", "q7", "q8", "q9", "q10", "q11", "q12", "q13"]
-  const allQuestions = [...demographicQuestions, ...likertQuestions]
+  const answerableQuestions = questions.filter(q => q.question_type !== "header")
+  const demographicQuestions = answerableQuestions.filter(q => getQuestionKey(q) === "q0a" || getQuestionKey(q) === "q0b")
+  const likertQuestions = answerableQuestions.filter(q => q.question_type === "likert")
+  const textQuestions = answerableQuestions.filter(q => q.question_type === "textarea")
+  const allQuestions = [...demographicQuestions, ...likertQuestions, ...textQuestions]
 
   const handleDelete = async (id: number) => {
     if (!confirm("Tem certeza que deseja apagar esta resposta?")) return
@@ -191,9 +175,10 @@ export default function ResultsClient({ responses: initialResponses }: ResultsCl
   const handleEdit = (response: SurveyResponse) => {
     setEditingResponse(response)
     const formData: Record<string, string> = {}
-    allQuestions.forEach(q => {
-      const value = response[q as keyof SurveyResponse]
-      formData[q] = (value as string) || ""
+    allQuestions.forEach(question => {
+      const key = getQuestionKey(question)
+      const value = response[key as keyof SurveyResponse]
+      formData[key] = (value as string) || ""
     })
     setEditFormData(formData)
   }
@@ -251,23 +236,30 @@ export default function ResultsClient({ responses: initialResponses }: ResultsCl
               {/* Demographic Questions */}
               <div className="border-b border-border pb-6">
                 <h3 className="text-sm font-bold text-accent mb-4">DADOS DEMOGRÁFICOS</h3>
-                {demographicQuestions.map(q => (
-                  <div key={q} className="mb-4">
+                {demographicQuestions.map(question => (
+                  <div key={getQuestionRenderKey(question)} className="mb-4">
+                    {(() => {
+                      const key = getQuestionKey(question)
+                      return (
+                        <>
                     <label className="block text-sm font-medium text-foreground mb-2">
-                      {questionLabels[q]}
+                      {question.question_text}
                     </label>
                     <select
-                      value={editFormData[q] || ""}
-                      onChange={(e) => setEditFormData(prev => ({ ...prev, [q]: e.target.value }))}
+                      value={editFormData[key] || ""}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, [key]: e.target.value }))}
                       className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                     >
                       <option value="">Selecione...</option>
-                      {demographicOptions[q]?.map(opt => (
+                      {question.options?.map(opt => (
                         <option key={opt.value} value={opt.value}>
                           {opt.label}
                         </option>
                       ))}
                     </select>
+                        </>
+                      )
+                    })()}
                   </div>
                 ))}
               </div>
@@ -275,26 +267,58 @@ export default function ResultsClient({ responses: initialResponses }: ResultsCl
               {/* Likert Questions */}
               <div>
                 <h3 className="text-sm font-bold text-accent mb-4">ESCALA LIKERT (1-5)</h3>
-                {likertQuestions.map(q => (
-                  <div key={q} className="mb-4">
+                {likertQuestions.map(question => (
+                  <div key={getQuestionRenderKey(question)} className="mb-4">
+                    {(() => {
+                      const key = getQuestionKey(question)
+                      return (
+                        <>
                     <label className="block text-sm font-medium text-foreground mb-2">
-                      {q.toUpperCase()}: {questionLabels[q]}
+                      {question.question_number}: {question.question_text}
                     </label>
                     <select
-                      value={editFormData[q] || ""}
-                      onChange={(e) => setEditFormData(prev => ({ ...prev, [q]: e.target.value }))}
+                      value={editFormData[key] || ""}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, [key]: e.target.value }))}
                       className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                     >
                       <option value="">Selecione...</option>
-                      {likertOptions.map(opt => (
+                      {question.options?.map(opt => (
                         <option key={opt.value} value={opt.value}>
                           {opt.value} - {opt.label}
                         </option>
                       ))}
                     </select>
+                        </>
+                      )
+                    })()}
                   </div>
                 ))}
               </div>
+
+              {textQuestions.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-bold text-accent mb-4">RESPOSTAS ABERTAS</h3>
+                  {textQuestions.map(question => (
+                    <div key={getQuestionRenderKey(question)} className="mb-4">
+                      {(() => {
+                        const key = getQuestionKey(question)
+                        return (
+                          <>
+                      <label className="block text-sm font-medium text-foreground mb-2">
+                        {question.question_number}: {question.question_text}
+                      </label>
+                      <textarea
+                        value={editFormData[key] || ""}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, [key]: e.target.value }))}
+                        className="w-full min-h-24 bg-secondary border border-border rounded-lg px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                          </>
+                        )
+                      })()}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             
             <div className="sticky bottom-0 bg-card border-t border-border px-6 py-4 flex gap-3 justify-end">
@@ -387,17 +411,17 @@ export default function ResultsClient({ responses: initialResponses }: ResultsCl
             <div className="border-b border-border pb-6 mb-6">
               <h2 className="font-serif text-xl font-bold text-foreground mb-6">Dados Demográficos</h2>
               <div className="grid md:grid-cols-2 gap-6">
-                {demographicQuestions.map(q => {
-                  const counts = countAnswers(responses, q)
+                {demographicQuestions.map(question => {
+                  const counts = countAnswers(responses, getQuestionKey(question))
                   const total = Object.values(counts).reduce((a, b) => a + b, 0)
                   
                   return (
-                    <div key={q} className="bg-card border border-border rounded-xl p-6">
+                    <div key={getQuestionRenderKey(question)} className="bg-card border border-border rounded-xl p-6">
                       <h3 className="font-serif font-bold text-lg mb-4 text-foreground">
-                        {questionLabels[q]}
+                        {question.question_text}
                       </h3>
                       <div className="space-y-3">
-                        {demographicOptions[q]?.map(({ value: key, label }) => {
+                        {question.options?.map(({ value: key, label }) => {
                           const count = counts[key] || 0
                           const percentage = total > 0 ? (count / total) * 100 : 0
                           
@@ -427,17 +451,17 @@ export default function ResultsClient({ responses: initialResponses }: ResultsCl
 
             {/* Likert Summary */}
             <h2 className="font-serif text-xl font-bold text-foreground mb-4">Perguntas - Escala Likert</h2>
-            {likertQuestions.map(q => {
-              const counts = countAnswers(responses, q)
+            {likertQuestions.map(question => {
+              const counts = countAnswers(responses, getQuestionKey(question))
               const total = Object.values(counts).reduce((a, b) => a + b, 0)
 
               return (
-                <div key={q} className="bg-card border border-border rounded-xl p-6">
+                <div key={getQuestionRenderKey(question)} className="bg-card border border-border rounded-xl p-6">
                   <h3 className="font-serif font-bold text-lg mb-4 text-foreground">
-                    {q.toUpperCase()}: {questionLabels[q]}
+                    {question.question_number}: {question.question_text}
                   </h3>
                   <div className="space-y-3">
-                    {likertOptions.map(({ value: key, label }) => {
+                    {question.options?.map(({ value: key, label }) => {
                       const count = counts[key] || 0
                       const percentage = total > 0 ? (count / total) * 100 : 0
                       
@@ -462,6 +486,46 @@ export default function ResultsClient({ responses: initialResponses }: ResultsCl
                 </div>
               )
             })}
+
+            {textQuestions.length > 0 && (
+              <>
+                <h2 className="font-serif text-xl font-bold text-foreground mb-4">Respostas Abertas</h2>
+                {textQuestions.map(question => {
+                  const questionKey = getQuestionKey(question)
+                  const answers = responses
+                    .map(response => ({
+                      id: response.id,
+                      created_at: response.created_at,
+                      value: response[questionKey as keyof SurveyResponse] as string | null
+                    }))
+                    .filter(answer => answer.value?.trim())
+
+                  return (
+                    <div key={getQuestionRenderKey(question)} className="bg-card border border-border rounded-xl p-6">
+                      <h3 className="font-serif font-bold text-lg mb-4 text-foreground">
+                        {question.question_number}: {question.question_text}
+                      </h3>
+                      {answers.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Nenhuma resposta preenchida.</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {answers.map((answer, index) => (
+                            <div key={`${questionKey}-${answer.id}`} className="rounded-lg bg-secondary/60 p-4">
+                              <div className="mb-2 text-xs font-medium text-accent">
+                                Resposta #{answers.length - index}
+                              </div>
+                              <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">
+                                {answer.value}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
@@ -537,11 +601,11 @@ export default function ResultsClient({ responses: initialResponses }: ResultsCl
                     <div className="mb-4 pb-4 border-b border-border">
                       <h4 className="text-xs font-bold text-accent mb-2">DADOS DEMOGRÁFICOS</h4>
                       <div className="grid grid-cols-2 gap-4">
-                        {demographicQuestions.map(q => (
-                          <div key={q}>
-                            <span className="text-muted-foreground text-sm">{questionLabels[q]}: </span>
+                        {demographicQuestions.map(question => (
+                          <div key={getQuestionRenderKey(question)}>
+                            <span className="text-muted-foreground text-sm">{question.question_text}: </span>
                             <span className="text-foreground text-sm font-medium">
-                              {getDemographicLabel(q, response[q as keyof SurveyResponse] as string | null)}
+                              {getOptionLabel(question, response[getQuestionKey(question) as keyof SurveyResponse] as string | null)}
                             </span>
                           </div>
                         ))}
@@ -550,20 +614,38 @@ export default function ResultsClient({ responses: initialResponses }: ResultsCl
 
                     {/* Likert Responses */}
                     <div className="grid gap-3">
-                      {likertQuestions.map(q => (
-                        <div key={q} className="flex items-start gap-2">
+                      {likertQuestions.map(question => (
+                        <div key={getQuestionRenderKey(question)} className="flex items-start gap-2">
                           <span className="text-accent text-sm font-bold w-8 flex-shrink-0">
-                            {q.toUpperCase()}:
+                            {question.question_number}:
                           </span>
                           <span className="text-muted-foreground text-sm flex-1">
-                            {questionLabels[q]}
+                            {question.question_text}
                           </span>
                           <span className="text-foreground text-sm font-medium w-48 text-right">
-                            {getLikertLabel(response[q as keyof SurveyResponse] as string | null)}
+                            {getOptionLabel(question, response[getQuestionKey(question) as keyof SurveyResponse] as string | null)}
                           </span>
                         </div>
                       ))}
                     </div>
+
+                    {textQuestions.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-border">
+                        <h4 className="text-xs font-bold text-accent mb-2">RESPOSTAS ABERTAS</h4>
+                        <div className="grid gap-3">
+                          {textQuestions.map(question => (
+                            <div key={getQuestionRenderKey(question)}>
+                              <div className="text-muted-foreground text-sm mb-1">
+                                {question.question_number}: {question.question_text}
+                              </div>
+                              <div className="text-foreground text-sm whitespace-pre-wrap">
+                                {(response[getQuestionKey(question) as keyof SurveyResponse] as string | null) || "-"}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
