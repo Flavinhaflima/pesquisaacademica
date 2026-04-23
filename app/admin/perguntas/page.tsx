@@ -1,6 +1,9 @@
 import { neon } from '@neondatabase/serverless'
 import QuestionsClient from './questions-client'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 interface Question {
   id: number
   block_title: string | null

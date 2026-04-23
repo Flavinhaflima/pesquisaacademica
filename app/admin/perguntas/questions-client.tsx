@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AdminLogin } from "@/components/admin-login"
@@ -29,6 +29,24 @@ export default function QuestionsClient({ questions: initialQuestions }: Questio
   useEffect(() => {
     checkAuth()
   }, [])
+
+  const refreshQuestions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/questions", { cache: "no-store" })
+      if (res.ok) {
+        const data = await res.json()
+        setQuestions(data as Question[])
+      }
+    } catch (error) {
+      console.error("Error refreshing questions:", error)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      refreshQuestions()
+    }
+  }, [isAuthenticated, refreshQuestions])
 
   const checkAuth = async () => {
     try {
@@ -75,11 +93,7 @@ export default function QuestionsClient({ questions: initialQuestions }: Questio
       })
       
       if (res.ok) {
-        setQuestions(prev => prev.map(q => 
-          q.id === editingQuestion.id 
-            ? { ...q, ...editFormData, updated_at: new Date().toISOString() }
-            : q
-        ))
+        await refreshQuestions()
         setEditingQuestion(null)
         setEditFormData({})
         router.refresh()
