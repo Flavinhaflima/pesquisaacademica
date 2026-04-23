@@ -1,0 +1,31 @@
+-- Create survey_questions table to store editable question configuration
+CREATE TABLE IF NOT EXISTS survey_questions (
+  id SERIAL PRIMARY KEY,
+  question_key VARCHAR(10) NOT NULL UNIQUE,
+  block_number INTEGER NOT NULL,
+  block_title VARCHAR(255) NOT NULL,
+  question_number VARCHAR(10) NOT NULL,
+  question_text TEXT NOT NULL,
+  check_note VARCHAR(255),
+  question_type VARCHAR(20) DEFAULT 'radio',
+  options JSONB,
+  sort_order INTEGER NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert default questions
+INSERT INTO survey_questions (question_key, block_number, block_title, question_number, question_text, check_note, question_type, options, sort_order) VALUES
+('q1', 1, 'Reacao aos Anuncios', 'Q1', 'Quando voce esta no meio de uma sessao de scroll no Instagram e aparece um anuncio, o que geralmente acontece?', NULL, 'radio', '[{"value": "a", "label": "Passo direto, quase no automatico"}, {"value": "b", "label": "Dou uma olhada rapida, mas continuo rolando"}, {"value": "c", "label": "Paro um pouco se algo chamar atencao"}, {"value": "d", "label": "Paro e assisto/leio se parecer relevante pra mim"}, {"value": "e", "label": "Depende - as vezes engajo, as vezes nao"}]', 1),
+('q2', 1, 'Reacao aos Anuncios', 'Q2', 'E no TikTok, qual das opcoes melhor descreve sua reacao a anuncios?', 'par de verificacao com Q1', 'radio', '[{"value": "a", "label": "Passo direto, quase no automatico"}, {"value": "b", "label": "Dou uma olhada rapida, mas continuo rolando"}, {"value": "c", "label": "Paro um pouco se algo chamar atencao"}, {"value": "d", "label": "Paro e assisto/leio se parecer relevante pra mim"}, {"value": "e", "label": "Depende - as vezes engajo, as vezes nao"}]', 2),
+('q3', 2, 'Comportamento Recente', 'Q3', 'Nas ultimas duas semanas, quantas vezes voce clicou, salvou ou compartilhou um anuncio que viu no Instagram ou TikTok?', NULL, 'radio', '[{"value": "a", "label": "0 - acho que nao interagi com nenhum"}, {"value": "b", "label": "1-2 vezes"}, {"value": "c", "label": "3-5 vezes"}, {"value": "d", "label": "Mais de 5 vezes"}]', 3),
+('q4', 3, 'Personalizacao', 'Q4', 'Imagina que voce esta rolando o feed e aparecem dois anuncios seguidos. Um e sobre algo que voce pesquisou recentemente. O outro nao tem nada a ver com voce. O que voce faz?', NULL, 'radio', '[{"value": "a", "label": "Paro nos dois - decido pelo visual, nao pelo assunto"}, {"value": "b", "label": "Paro so no relevante"}, {"value": "c", "label": "Pulo os dois - estou em modo scroll e anuncio quebra o ritmo de qualquer jeito"}, {"value": "d", "label": "Depende do formato - video, imagem ou story muda minha reacao"}]', 4),
+('q5', 3, 'Personalizacao', 'Q5', 'Quando voce percebe que um anuncio parece saber o que voce estava pesquisando ou comentando, sua primeira reacao e mais proxima de...', NULL, 'radio', '[{"value": "a", "label": "Util - esta me mostrando coisas que eu realmente quero."}, {"value": "b", "label": "Perturbador - nao gosto de ser rastreado(a)."}]', 5),
+('q6', 3, 'Personalizacao', 'Q6', 'Voce ja deixou de comprar algo por sentir que o anuncio era "invasivo demais" - como se a plataforma soubesse coisas demais sobre voce?', 'verificacao de Q5', 'radio', '[{"value": "a", "label": "Sim, isso ja mudou minha decisao de compra"}, {"value": "b", "label": "Nao - se o produto me interessa, isso nao importa"}, {"value": "c", "label": "Nunca tinha pensado nisso dessa forma"}]', 6),
+('q7', 4, 'Influencia Inconsciente', 'Q7', 'Voce ja ignorou um anuncio no Instagram - e mesmo assim foi pesquisar o produto depois?', NULL, 'radio', '[{"value": "a", "label": "Sim, isso ja aconteceu mais de uma vez"}, {"value": "b", "label": "Sim, lembro de uma vez especifica"}, {"value": "c", "label": "Nao, se nao parei e porque nao me interessou"}, {"value": "d", "label": "Nunca tinha pensado nisso"}]', 7),
+('q8', 4, 'Influencia Inconsciente', 'Q8', 'Voce consegue lembrar de alguma marca ou produto que ficou na sua cabeca depois de ver um anuncio no TikTok ou Instagram - mesmo sem ter clicado ou parado pra ver?', NULL, 'radio', '[{"value": "a", "label": "Sim, consigo lembrar de um caso especifico"}, {"value": "b", "label": "Sim, mas nao consigo identificar qual anuncio foi"}, {"value": "c", "label": "Nao, se nao cliquei nao ficou na memoria"}, {"value": "d", "label": "Nunca prestei atencao nisso"}]', 8),
+('q9', 5, 'Memoria e Recall', 'Q9', 'Pensa em um anuncio que voce realmente lembra de ter visto nas redes sociais recentemente - um que ficou na sua cabeca. O que fez voce lembrar dele?', NULL, 'textarea', NULL, 9),
+('q10', 5, 'Memoria e Recall', 'Q10', 'Esse anuncio que voce lembrou estava no Instagram ou no TikTok?', 'verificacao de Q9', 'radio', '[{"value": "a", "label": "Instagram"}, {"value": "b", "label": "TikTok"}, {"value": "c", "label": "Outra plataforma"}, {"value": "d", "label": "Nao consigo lembrar onde vi"}]', 10),
+('q11', 6, 'Autopercepcao do Comportamento', 'Q11', 'Voce diria que o TikTok te faz comprar mais coisas do que o Instagram?', NULL, 'radio', '[{"value": "a", "label": "Sim, o TikTok me influencia mais nas compras"}, {"value": "b", "label": "Sim, o Instagram me influencia mais nas compras"}, {"value": "c", "label": "As duas plataformas tem impacto parecido"}, {"value": "d", "label": "Nenhuma das duas me faz comprar por causa de anuncio"}]', 11),
+('q12', 6, 'Autopercepcao do Comportamento', 'Q12', 'Voce ja buscou um produto no Google ou em uma loja depois de ver um video no TikTok - mesmo sem ter clicado no anuncio?', 'verificacao de Q11', 'radio', '[{"value": "a", "label": "Sim, isso acontece com frequencia"}, {"value": "b", "label": "Sim, ja aconteceu pelo menos uma vez"}, {"value": "c", "label": "Nao, nunca fiz isso"}]', 12),
+('q13', 6, 'Autopercepcao do Comportamento', 'Q13', 'No geral, voce sente que as plataformas controlam o que voce ve - ou que voce controla o que consome?', NULL, 'radio', '[{"value": "a", "label": "As plataformas controlam - o algoritmo decide por mim"}, {"value": "b", "label": "Eu controlo - curto e sigo o que quero ver"}, {"value": "c", "label": "E uma mistura: o algoritmo aprende comigo e eu me adapto a ele"}, {"value": "d", "label": "Nunca parei para pensar nisso"}]', 13);
