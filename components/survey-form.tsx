@@ -24,9 +24,10 @@ interface QuestionCardProps {
   children: React.ReactNode
   checkNote?: string | null
   isSubQuestion?: boolean
+  hasError?: boolean
 }
 
-function QuestionCard({ number, question, children, checkNote, isSubQuestion }: QuestionCardProps) {
+function QuestionCard({ number, question, children, checkNote, isSubQuestion, hasError }: QuestionCardProps) {
   const highlightPlatforms = (text: string) => {
     const parts = text.split(/(Instagram|TikTok|Instagram ou TikTok|TikTok ou Instagram)/g)
     return parts.map((part, index) => {
@@ -40,7 +41,8 @@ function QuestionCard({ number, question, children, checkNote, isSubQuestion }: 
   return (
     <div className={cn(
       "bg-card border border-border rounded-[14px] p-6 mb-3.5 transition-colors focus-within:border-primary/25",
-      isSubQuestion && "ml-6 bg-card/50"
+      isSubQuestion && "ml-6 bg-card/50",
+      hasError && "border-red-500/70 bg-red-500/5"
     )}>
       <div className="font-serif text-[11px] font-bold text-muted-foreground tracking-[0.1em] mb-2">
         {number}
@@ -54,6 +56,11 @@ function QuestionCard({ number, question, children, checkNote, isSubQuestion }: 
         </span>
       )}
       {children}
+      {hasError && (
+        <p className="mt-3 text-sm text-red-400">
+          Esta pergunta é obrigatória.
+        </p>
+      )}
     </div>
   )
 }
@@ -137,6 +144,7 @@ export default function SurveyForm({ onSubmit }: SurveyFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [progress, setProgress] = useState(0)
+  const [missingQuestions, setMissingQuestions] = useState<string[]>([])
 
   useEffect(() => {
     fetchQuestions()
@@ -161,14 +169,39 @@ export default function SurveyForm({ onSubmit }: SurveyFormProps) {
   const updateAnswer = (question: string, value: string) => {
     const newAnswers = { ...answers, [question]: value }
     setAnswers(newAnswers)
+    setMissingQuestions(prev => prev.filter(q => q !== question))
     
+    const requiredQuestions = getRequiredQuestions()
+    const answered = requiredQuestions.filter(q => newAnswers[getQuestionKey(q.question_number)]?.trim()).length
+    setProgress(requiredQuestions.length > 0 ? (answered / requiredQuestions.length) * 100 : 0)
+  }
+
+  const getRequiredQuestions = () => {
     const answerableQuestions = questions.filter(q => q.question_type !== 'header')
-    const answered = Object.keys(newAnswers).filter(k => newAnswers[k]).length
-    setProgress((answered / answerableQuestions.length) * 100)
+    const sortedQuestions = [...answerableQuestions].sort((a, b) => a.sort_order - b.sort_order)
+
+    return sortedQuestions.filter((question, index) => {
+      const isLastQuestion = index === sortedQuestions.length - 1
+      return !(isLastQuestion && question.question_type === 'textarea')
+    })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    const missing = getRequiredQuestions()
+      .filter(q => !answers[getQuestionKey(q.question_number)]?.trim())
+      .map(q => getQuestionKey(q.question_number))
+
+    if (missing.length > 0) {
+      setMissingQuestions(missing)
+      document.getElementById(`question-${missing[0]}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      })
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
@@ -220,6 +253,7 @@ export default function SurveyForm({ onSubmit }: SurveyFormProps) {
   const renderQuestion = (question: Question) => {
     const isSubQuestion = question.question_number.includes('.')
     const key = getQuestionKey(question.question_number)
+    const hasError = missingQuestions.includes(key)
     
     // Header type question (like Q4) - just show the text without input
     if (question.question_type === 'header') {
@@ -236,43 +270,45 @@ export default function SurveyForm({ onSubmit }: SurveyFormProps) {
     }
 
     return (
-      <QuestionCard
-        key={question.id}
-        number={question.question_number}
-        question={question.question_text}
-        checkNote={question.check_note}
-        isSubQuestion={isSubQuestion}
-      >
-        {question.question_type === 'textarea' ? (
-          <textarea
-            name={key}
-            value={answers[key] || ""}
-            onChange={(e) => updateAnswer(key, e.target.value)}
-            placeholder="Escreva aqui sua resposta..."
-            className="w-full bg-secondary border border-border rounded-[10px] text-foreground font-sans text-sm font-light p-3.5 resize-y min-h-[90px] outline-none transition-colors focus:border-primary/30 placeholder:text-muted-foreground"
-          />
-        ) : question.question_type === 'likert' && question.options ? (
-          <LikertScale
-            name={key}
-            options={question.options}
-            selected={answers[key]}
-            onChange={(v) => updateAnswer(key, v)}
-          />
-        ) : (
-          <div className="flex flex-col gap-2">
-            {question.options?.map((option) => (
-              <RadioOption
-                key={option.value}
-                name={key}
-                value={option.value}
-                label={option.label}
-                selected={answers[key] === option.value}
-                onChange={(v) => updateAnswer(key, v)}
-              />
-            ))}
-          </div>
-        )}
-      </QuestionCard>
+      <div key={question.id} id={`question-${key}`} className="scroll-mt-12">
+        <QuestionCard
+          number={question.question_number}
+          question={question.question_text}
+          checkNote={question.check_note}
+          isSubQuestion={isSubQuestion}
+          hasError={hasError}
+        >
+          {question.question_type === 'textarea' ? (
+            <textarea
+              name={key}
+              value={answers[key] || ""}
+              onChange={(e) => updateAnswer(key, e.target.value)}
+              placeholder="Escreva aqui sua resposta..."
+              className="w-full bg-secondary border border-border rounded-[10px] text-foreground font-sans text-sm font-light p-3.5 resize-y min-h-[90px] outline-none transition-colors focus:border-primary/30 placeholder:text-muted-foreground"
+            />
+          ) : question.question_type === 'likert' && question.options ? (
+            <LikertScale
+              name={key}
+              options={question.options}
+              selected={answers[key]}
+              onChange={(v) => updateAnswer(key, v)}
+            />
+          ) : (
+            <div className="flex flex-col gap-2">
+              {question.options?.map((option) => (
+                <RadioOption
+                  key={option.value}
+                  name={key}
+                  value={option.value}
+                  label={option.label}
+                  selected={answers[key] === option.value}
+                  onChange={(v) => updateAnswer(key, v)}
+                />
+              ))}
+            </div>
+          )}
+        </QuestionCard>
+      </div>
     )
   }
 

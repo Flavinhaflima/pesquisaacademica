@@ -3,9 +3,36 @@ import { NextResponse } from 'next/server'
 
 const sql = neon(process.env.DATABASE_URL!)
 
+const getQuestionKey = (questionNumber: string) => questionNumber.toLowerCase().replace('.', '').replace('_', '')
+
+async function getRequiredQuestionKeys() {
+  const questions = await sql`
+    SELECT question_number, question_type
+    FROM survey_questions
+    WHERE question_type != 'header'
+    ORDER BY sort_order ASC, question_number ASC
+  `
+
+  return questions
+    .filter((question, index) => {
+      const isLastQuestion = index === questions.length - 1
+      return !(isLastQuestion && question.question_type === 'textarea')
+    })
+    .map(question => getQuestionKey(question.question_number as string))
+}
+
 export async function POST(request: Request) {
   try {
     const data = await request.json()
+    const requiredQuestionKeys = await getRequiredQuestionKeys()
+    const missingQuestions = requiredQuestionKeys.filter(key => !String(data[key] ?? '').trim())
+
+    if (missingQuestions.length > 0) {
+      return NextResponse.json(
+        { error: 'Missing required answers', missingQuestions },
+        { status: 400 }
+      )
+    }
     
     await sql`
       INSERT INTO survey_responses (
