@@ -47,15 +47,17 @@ const questionLabels: Record<string, string> = {
 
 const demographicOptions: Record<string, { value: string; label: string }[]> = {
   q0a: [
-    { value: "f", label: "Feminino" },
-    { value: "m", label: "Masculino" },
-    { value: "x", label: "Prefiro não informar" }
+    { value: "a", label: "Feminino" },
+    { value: "b", label: "Masculino" },
+    { value: "c", label: "Prefiro não informar" }
   ],
   q0b: [
-    { value: "a", label: "Entre 14-28 anos" },
-    { value: "b", label: "Entre 29-43 anos" },
-    { value: "c", label: "Entre 44-59 anos" },
-    { value: "d", label: "Acima de 60 anos" }
+    { value: "a", label: "Menor de 18 anos" },
+    { value: "b", label: "Entre 19-24 anos" },
+    { value: "c", label: "Entre 25-34 anos" },
+    { value: "d", label: "Entre 35-44 anos" },
+    { value: "e", label: "Entre 45-54 anos" },
+    { value: "f", label: "Mais de 55 anos" }
   ]
 }
 
