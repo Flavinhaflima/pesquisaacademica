@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AdminLogin } from "@/components/admin-login"
+import * as XLSX from "xlsx"
 
 interface SurveyResponse {
   id: number
@@ -212,6 +213,100 @@ export default function ResultsClient({ responses: initialResponses, questions: 
     }
   }
 
+  const handleExportCSV = (response: SurveyResponse, index: number) => {
+    const rows: string[][] = [["Campo", "Resposta"]]
+    rows.push(["Data/Hora", new Date(response.created_at).toLocaleString("pt-BR")])
+
+    allQuestions.forEach(q => {
+      const key = getQuestionKey(q)
+      const raw = response[key as keyof SurveyResponse] as string | null
+      const label = q.question_number
+        ? `${q.question_number} - ${q.question_text}`
+        : q.question_text
+      const value = q.question_type === "likert"
+        ? getOptionLabel(q, raw)
+        : (raw || "-")
+      rows.push([label, value])
+    })
+
+    const csv = rows.map(row =>
+      row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+    ).join("\n")
+
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `resposta_${responses.length - index}_${new Date(response.created_at).toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleExportAllCSV = () => {
+    const headers: string[] = ["ID", "Data/Hora"]
+    allQuestions.forEach(q => {
+      headers.push(q.question_number ? `${q.question_number} - ${q.question_text}` : q.question_text)
+    })
+
+    const rows = responses.map(r => {
+      const row: string[] = [
+        String(r.id),
+        new Date(r.created_at).toLocaleString("pt-BR"),
+      ]
+      allQuestions.forEach(q => {
+        const key = getQuestionKey(q)
+        const raw = r[key as keyof SurveyResponse] as string | null
+        row.push(raw || "")
+      })
+      return row
+    })
+
+    const csv = [headers, ...rows]
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n")
+
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `respostas_survey_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleExportExcel = () => {
+    const headers: Record<string, string> = { id: "ID", created_at: "Data/Hora" }
+    allQuestions.forEach(q => {
+      const key = getQuestionKey(q)
+      headers[key] = q.question_number
+        ? `${q.question_number} - ${q.question_text}`
+        : q.question_text
+    })
+
+    const rows = responses.map(r => {
+      const row: Record<string, string | number | null> = {
+        id: r.id,
+        created_at: new Date(r.created_at).toLocaleString("pt-BR"),
+      }
+      allQuestions.forEach(q => {
+        const key = getQuestionKey(q)
+        const raw = r[key as keyof SurveyResponse] as string | null
+        row[key] = raw ? (isNaN(Number(raw)) ? raw : Number(raw)) : null
+      })
+      return row
+    })
+
+    const wsData = [
+      Object.values(headers),
+      ...rows.map(row => Object.keys(headers).map(k => row[k] ?? "")),
+    ]
+
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet(wsData)
+    XLSX.utils.book_append_sheet(wb, ws, "Respostas")
+    XLSX.writeFile(wb, `respostas_survey_${new Date().toISOString().slice(0, 10)}.xlsx`)
+  }
+
   return (
     <main className="min-h-screen bg-background">
       {/* Edit Modal */}
@@ -371,6 +466,12 @@ export default function ResultsClient({ responses: initialResponses, questions: 
                 className="px-4 py-2 rounded-lg text-sm font-medium bg-secondary text-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50"
               >
                 {isRefreshing ? "Atualizando..." : "Atualizar"}
+              </button>
+              <button
+                onClick={handleExportAllCSV}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-secondary text-foreground hover:bg-secondary/80 transition-colors"
+              >
+                Baixar CSV
               </button>
               <button
                 onClick={() => setView("summary")}
@@ -566,6 +667,15 @@ export default function ResultsClient({ responses: initialResponses, questions: 
                   </button>
                   
                   <div className="flex items-center gap-2 px-4">
+                    <button
+                      onClick={() => handleExportCSV(response, index)}
+                      className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                      title="Baixar CSV"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                    </button>
                     <button
                       onClick={() => handleEdit(response)}
                       className="p-2 rounded-lg text-muted-foreground hover:text-accent hover:bg-accent/10 transition-colors"
